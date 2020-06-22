@@ -1,12 +1,42 @@
 var cors = require('cors');
+const express = require('express');
 const app = express();
+const _ = require("lodash");
 app.use(cors({ credentials: true, origin: true }));
-const io = require('socket.io')(http);
 const http = require('http').Server(app);
+
+const io = require('socket.io')(http);
 const port = process.env.PORT || 7000;
 
 
 io.on("connection", async (socket) => {
+    var waiting_user = [];
+    /**
+    * data:{
+    *   user_id
+    *   game_id -> if nessasary
+    *   time_out -> in mins
+    *   room_type ->  4 or more
+    * }
+    * 
+    * 
+    */
+
+    socket.on("fast-finding", async (data) => {
+        var userInfo = {
+            socket_id: socket.id,
+            user_id: data.userID,
+            room_type: data.roomType,
+            time:Date.now(),
+        }
+        waiting_user.push(userInfo);
+        
+
+
+    })
+
+
+
     socket.on('disconnect', () => {
         socket.disconnect();
         //let s= listUser.find(e=>e.socketID ===socket.id);
