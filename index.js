@@ -182,12 +182,12 @@ async function createRoom(option, accessToken) {
 	});
 }
 
-function clearRoom(roomId){
+function clearRoom(roomId) {
 	Object.keys(
 		io.sockets.adapter.rooms[roomId].sockets
-	  ).forEach(socketId => {
+	).forEach(socketId => {
 		io.sockets.connected[socketId].leave(roomId);
-	  });
+	});
 }
 
 function triggerOption(options, option, socket, accessToken) {
@@ -319,7 +319,7 @@ function notification(
 	}));
 }
 
-function auth(socket, accessToken, successCalback) {
+function auth(socket, accessToken, successCalback, errorCallback) {
 	if (accessToken) {
 		handleAccessToken(accessToken)
 			.then((result) => {
@@ -338,20 +338,30 @@ function auth(socket, accessToken, successCalback) {
 				}
 			})
 			.catch((error) => {
-				const response = error.data;
-
 				notification(socket, {
 					success: false,
-					payload: response,
+					payload: error,////////////////////////////////////////
 					message: 'authentication failed'
 				});
 				console.log('authentication failed');////////////////////////////////////////
 				console.log(error);////////////////////////////////////////
+				errorCallback(error);
 			});
 	} else {
 		notification(socket, {
 			success: false,
 			message: 'missing the token'
+		});
+	}
+}
+
+function sendFindingStatusToOtherDivices(socket, option, accountId) {
+	const subcribers = option.subcribers;
+	const subcriberIndex = getIndexOfSubcriberByAccountId(subcribers, accountId);
+
+	if(subcriberIndex > -1){
+		subcribers[subcriberIndex].socketIds.forEach((socketId) => {
+			socket.broadcast.to(socketId).emit('IS_FINDING_ROOMS_RESULT', true);
 		});
 	}
 }
@@ -364,96 +374,78 @@ function auth(socket, accessToken, successCalback) {
 
 
 
-
 const __options = [];
 
 io.on("connection", (socket) => {
+	const token = socket.request.headers.token;
 
-	socket.on("IS_FINDING_ROOMS", (data) => {
+	if (token) {
 		auth(socket, data.accessToken,
 			(accessToken, accountId) => {
-				if (getIndexOfOptionByAccountId(accountId) > -1) {
-					socket.emit('IS_FINDING_ROOMS_RESULT', true);
-				} else {
-					socket.emit('IS_FINDING_ROOMS_RESULT', false);
-				}
-			}
-		);
-	})
-
-	socket.on("FIND_ROOMS", (data) => {
-		auth(socket, data.accessToken,
-			(accessToken, accountId) => {
-				// console.log(accessToken);////////////////////////////////////////
-				let option = data.option;
-				const socketId = socket.id;
-
-				if (option && accountId && option.roomSize && option.isAbsolute && option.gameId) {
-					option = createOptionIfItsNotExist(__options, socket, option.roomSize, option.isAbsolute, option.gameId);
-
-					pushSocketIdToItsSubcriber(option.subcribers, accountId, socketId);
-					joinSocketRoom(socket, option.socketRoomId);
-					triggerOption(__options, option, socket, accessToken);
-				} else {
-					notification(socket, {
-						success: false,
-						message: 'wrong data format'
-					});
-				}
-			}
-		);
-	})
-
-	socket.on("UNFIND_ROOMS", (data) => {
-		auth(socket, data.accessToken,
-			(accessToken, accountId) => {
-				const optionIndex = getIndexOfOptionByAccountId(__options, accountId);
-				if (optionIndex > -1) {
-					popSubcriber(__options[optionIndex].subcribers, accountId);
-
-					//remove this option if it has not any subcribers
-					if (__options[optionIndex].subcribers.length < 1) {
-						__options.splice(optionIndex, 1);
+				socket.on("IS_FINDING_ROOMS", (data) => {
+					if (getIndexOfOptionByAccountId(accountId) > -1) {
+						socket.emit('IS_FINDING_ROOMS_RESULT', true);
+					} else {
+						socket.emit('IS_FINDING_ROOMS_RESULT', false);
 					}
-				}
-			}
-		);
-	})
+				})
 
-	socket.on("UNFIND_ROOMS", (data) => {
-		auth(socket, data.accessToken,
-			(accessToken, accountId) => {
-				const optionIndex = getIndexOfOptionByAccountId(__options, accountId);
-				if (optionIndex > -1) {
-					popSubcriber(__options[optionIndex].subcribers, accountId);
+				socket.on("FIND_ROOMS", (data) => {
+					let option = data.option;
+					const socketId = socket.id;
 
-					//remove this option if it has not any subcribers
-					if (__options[optionIndex].subcribers.length < 1) {
-						__options.splice(optionIndex, 1);
+					if (option && accountId && option.roomSize && option.isAbsolute !== undefined && option.gameId) {
+						option = createOptionIfItsNotExist(__options, socket, option.roomSize, option.isAbsolute, option.gameId);
+
+						sendFindingStatusToOtherDivices();
+						pushSocketIdToItsSubcriber(option.subcribers, accountId, socketId);
+						joinSocketRoom(socket, option.socketRoomId);
+						triggerOption(__options, option, socket, accessToken);
+					} else {
+						notification(socket, {
+							success: false,
+							message: 'wrong data format'
+						});
 					}
-					//
-					socket.emit('UNFIND_ROOMS_RESULT', true);
-				}
+				})
+
+				socket.on("UNFIND_ROOMS", (data) => {
+					const optionIndex = getIndexOfOptionByAccountId(__options, accountId);
+					if (optionIndex > -1) {
+						popSubcriber(__options[optionIndex].subcribers, accountId);
+
+						//remove this option if it has not any subcribers
+						if (__options[optionIndex].subcribers.length < 1) {
+							__options.splice(optionIndex, 1);
+						}
+						//
+						socket.emit('UNFIND_ROOMS_RESULT', true);
+					}
+				})
+
+				socket.on('disconnect', () => {
+					socket.disconnect();
+
+					//remove socketId of its account
+					const optionIndex = getIndexOfOptionBySocketId(__options, socket.id);
+					if (optionIndex > -1) {
+						popSocketIdToItsSubcriber(__options[optionIndex].subcribers, socket.id);
+
+						//remove this option if it has not any subcribers
+						if (__options[optionIndex].subcribers.length < 1) {
+							__options.splice(optionIndex, 1);
+						}
+					}
+				})
+			},
+			(error) => {
+				socket.disconnect();
 			}
 		);
-	})
 
-
-
-	socket.on('disconnect', () => {
+	} else {
 		socket.disconnect();
-
-		//remove socketId of its account
-		const optionIndex = getIndexOfOptionBySocketId(__options, socket.id);
-		if (optionIndex > -1) {
-			popSocketIdToItsSubcriber(__options[optionIndex].subcribers, socket.id);
-
-			//remove this option if it has not any subcribers
-			if (__options[optionIndex].subcribers.length < 1) {
-				__options.splice(optionIndex, 1);
-			}
-		}
-	})
+	}
 })
 
 
