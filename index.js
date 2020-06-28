@@ -182,6 +182,14 @@ async function createRoom(option, accessToken) {
 	});
 }
 
+function clearRoom(roomId){
+	Object.keys(
+		io.sockets.adapter.rooms[roomId].sockets
+	  ).forEach(socketId => {
+		io.sockets.connected[socketId].leave(roomId);
+	  });
+}
+
 function triggerOption(options, option, socket, accessToken) {
 	if (option.subcribers.length >= option.roomSize && accessToken) {
 		// console.log('trigger at: ' + socket.id);////////////////////////////
@@ -200,10 +208,7 @@ function triggerOption(options, option, socket, accessToken) {
 				//remove this option
 				options.splice(options.indexOf(option), 1);
 				//leave all members
-				io.of('/').clients(option.socketRoomId).forEach((s) => {
-					console.log(s);////////////////////////////
-					s.leave(option.socketRoomId);
-				});
+				clearRoom(option.socketRoomId);
 
 				// console.log('io.sockets.adapter.rooms');////////////////////////////
 				// console.log(io.sockets.adapter.rooms);////////////////////////////
