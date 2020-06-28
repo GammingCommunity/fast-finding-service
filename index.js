@@ -191,12 +191,12 @@ function triggerOption(options, option, socket, accessToken) {
 				// console.log('success: ' + socket.id);////////////////////////////
 				// console.log('\n\n');////////////////////////////
 				const response = result.data;
-				
+
 				io.of('/').in(option.socketRoomId).emit('FINDING_RESULT', new ResultCRUD({
 					payload: response.data.createRoom.payload,
 					success: true
 				}));
-				
+
 				//remove this option
 				options.splice(options.indexOf(option), 1);
 				//leave all members
@@ -204,7 +204,7 @@ function triggerOption(options, option, socket, accessToken) {
 					console.log(s);////////////////////////////
 					s.leave(option.socketRoomId);
 				});
-				
+
 				// console.log('io.sockets.adapter.rooms');////////////////////////////
 				// console.log(io.sockets.adapter.rooms);////////////////////////////
 			})
@@ -320,7 +320,7 @@ function auth(socket, accessToken, successCalback) {
 			.then((result) => {
 				const response = result.data;
 				// console.log(response);////////////////////////////////////////
-				
+
 				if (response.status === AUTH_SERVICE_RESPONSE_TYPES.SUCCESSFUL) {
 					const accountId = response.data.accountId;
 					successCalback(accessToken, accountId);
@@ -367,7 +367,11 @@ io.on("connection", (socket) => {
 	socket.on("IS_FINDING_ROOMS", (data) => {
 		auth(socket, data.accessToken,
 			(accessToken, accountId) => {
-				
+				if (getIndexOfOptionByAccountId(accountId) > -1) {
+					socket.emit('IS_FINDING_ROOMS_RESULT', true);
+				} else {
+					socket.emit('IS_FINDING_ROOMS_RESULT', false);
+				}
 			}
 		);
 	})
