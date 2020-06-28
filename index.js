@@ -64,9 +64,13 @@ class Subcriber {
 }
 
 class Queue {
-	constructor(accountId, socketId) {
+	constructor(accountId, socketId, socketIds = null) {
 		this.accountId = accountId;
-		this.socketIds = [socketId];
+		if(socketIds){
+			this.socketIds = socketIds;
+		} else {
+			this.socketIds = [socketId];
+		}
 	}
 }
 
@@ -197,9 +201,13 @@ async function createRoom(option, accessToken) {
 	});
 }
 
+function leaveRoom(io, socketId, roomId){
+	io.sockets.connected[socketId].leave(roomId);
+}
+
 function clearRoom(io, roomId) {
 	Object.keys(io.sockets.adapter.rooms[roomId].sockets).forEach(socketId => {
-		io.sockets.connected[socketId].leave(roomId);
+		leaveRoom(io, socketId, roomId);
 	});
 }
 
@@ -274,9 +282,14 @@ function popSocketIdFromItsSubcriber(subcribers, socketId) {
 	}
 }
 
-function popSubcriber(subcribers, accountId) {
+function popSubcriberToQueue(io, subcribers, accountId, queueList, roomId) {
 	const subcriberIndex = getIndexOfSubcriberByAccountId(subcribers, accountId);
 	if (subcriberIndex > -1) {
+		queueList.push(new Queue(accountId, null, subcribers[subcriberIndex].socketIds));
+		subcribers[subcriberIndex].socketIds.forEach((socketId) => {
+			leaveRoom(io, socketId, roomId);
+		});
+		
 		subcribers.splice(subcriberIndex, 1);
 	}
 }
@@ -517,13 +530,13 @@ io.on("connection", socket => {
 					if (optionIndex > -1) {
 						const option = __options[optionIndex];
 						sendFindingStatusToOtherDivices(socket, option, accountId, false);
-						// popSubcriber(option.subcribers, accountId);
+						popSubcriberToQueue(io, option.subcribers, accountId, __queueList, option.socketRoomId);
 
-						// //remove this option if it has not any subcribers
-						// if (option.subcribers.length < 1) {
-						// 	__options.splice(optionIndex, 1);
-						// }
-						// //
+						//remove this option if it has not any subcribers
+						if (option.subcribers.length < 1) {
+							__options.splice(optionIndex, 1);
+						}
+						//
 					}
 				});
 
