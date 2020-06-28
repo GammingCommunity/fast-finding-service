@@ -299,9 +299,9 @@ function joinSocketRoom(io, socketId, socketRoomId) {
 	console.log(socketId + "\tjoin\n"); ////////////////////////////
 }
 
-function findOption(options, roomSize, isAbsolute) {
+function findOption(options, roomSize, isAbsolute, gameId) {
 	return options.find(
-		option => option.roomSize === roomSize && option.isAbsolute === isAbsolute
+		(option) => (option.roomSize === roomSize && option.isAbsolute === isAbsolute && option.gameId === gameId)
 	);
 }
 
@@ -312,7 +312,7 @@ function createOptionIfItsNotExist(
 	isAbsolute,
 	gameId
 ) {
-	let option = findOption(options, roomSize, isAbsolute);
+	let option = findOption(options, roomSize, isAbsolute, gameId);
 	if (option == null) {
 		option = new Option(isAbsolute, roomSize, socket.id, gameId);
 		options.push(option);
