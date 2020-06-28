@@ -1,16 +1,28 @@
-var cors = require('cors');
-const express = require('express');
+var cors = require("cors");
+const express = require("express");
 const app = express();
 const _ = require("lodash");
-const { forEach } = require('lodash');
-const { isAbsolute } = require('path');
-app.use(cors({ credentials: true, origin: true }));
-const http = require('http').Server(app);
+const { forEach } = require("lodash");
+const { isAbsolute } = require("path");
+app.use(cors());
+app.options("*", cors());
+const http = require("http").Server(app);
 
-const io = require('socket.io')(http);
+const io = require("socket.io")(http, {
+	handlePreflightRequest: (req, res) => {
+		const headers = {
+			"Access-Control-Allow-Headers": "token",
+			"Access-Control-Allow-Methods": "GET,PUT,POST,DELETE,PATCH,OPTIONS",
+			"Access-Control-Allow-Origin": req.headers.origin, //or the specific origin you want to give access to,
+			"Access-Control-Allow-Credentials": true
+		};
+		res.writeHead(200, headers);
+		res.end();
+	}
+});
 const port = process.env.PORT || 7000;
 const request = require("request");
-const axios = require('axios').default;
+const axios = require("axios").default;
 
 const SERVICE_KEY = `2tBIO24MpVQ1W6vv214r6C7UqP7JCrAuZRKRU7uwWLL1K8pyUXSsue8o3oUAegRTXhkT7PrugzTPP29kN9AK47U42jKTS6Fu9r3b6x7o3L70yUt6BmEL1Yn7I36yeB40`;
 const AUTH_SERVICE_URL = `https://auth-service.glitch.me`;
@@ -23,16 +35,14 @@ const AUTH_SERVICE_RESPONSE_TYPES = {
 	WRONG_USERNAME: "WRONG_USERNAME",
 	SESSION_EXPIRED: "SESSION_EXPIRED",
 	IS_BANNED_ACCOUNT: "IS_BANNED_ACCOUNT",
-	IS_UNACTIVATED_ACCOUNT: "IS_UNACTIVATED_ACCOUNT",
-}
+	IS_UNACTIVATED_ACCOUNT: "IS_UNACTIVATED_ACCOUNT"
+};
 
 const ROOM_TYPES = {
-	PUBLIC: 'public',
-	PRIVATE: 'private',
-	HIDDEN: 'hidden'
-}
-
-
+	PUBLIC: "public",
+	PRIVATE: "private",
+	HIDDEN: "hidden"
+};
 
 class Option {
 	constructor(isAbsolute, roomSize, socketRoomId, gameId) {
@@ -53,32 +63,26 @@ class Subcriber {
 	}
 }
 
-class ResultCRUD {
-	constructor(raw) {
-		this.status = raw.status,
-			this.payload = raw.payload,
-			this.success = raw.success,
-			this.message = raw.message
+class Queue {
+	constructor(accountId, socketId) {
+		this.accountId = accountId;
+		this.socketIds = [socketId];
 	}
 }
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+class ResultCRUD {
+	constructor(raw) {
+		(this.status = raw.status),
+			(this.payload = raw.payload),
+			(this.success = raw.success),
+			(this.message = raw.message);
+	}
+}
 
 function getIndexOfSubcriberByAccountId(subcribers, accountId) {
-	const subcriber = subcribers.find((subcriber) => (subcriber.accountId === accountId));
+	const subcriber = subcribers.find(
+		subcriber => subcriber.accountId === accountId
+	);
 	if (subcriber != null) {
 		return subcribers.indexOf(subcriber);
 	}
@@ -91,7 +95,9 @@ function findSocketId(socketIds, socketId) {
 }
 
 function getIndexOfSubcriberBySocketId(subcribers, socketId) {
-	const subcriber = subcribers.find((subcriber) => (findSocketId(subcriber.socketIds, socketId) != null));
+	const subcriber = subcribers.find(
+		subcriber => findSocketId(subcriber.socketIds, socketId) != null
+	);
 	if (subcriber != null) {
 		return subcribers.indexOf(subcriber);
 	}
@@ -100,12 +106,16 @@ function getIndexOfSubcriberBySocketId(subcribers, socketId) {
 }
 
 function getIndexOfOptionByAccountId(options, accountId) {
-	const option = options.find((option) => {
+	const option = options.find(option => {
 		const subcribers = option.subcribers;
-		const subcriberIndex = getIndexOfSubcriberByAccountId(subcribers, accountId);
+		const subcriberIndex = getIndexOfSubcriberByAccountId(
+			subcribers,
+			accountId
+		);
 
-		return subcriberIndex > -1 && findSocketId(subcribers[subcriberIndex].socketIds, accountId) != null;
+		return (subcriberIndex > -1);
 	});
+
 	if (option != null) {
 		return options.indexOf(option);
 	}
@@ -114,11 +124,14 @@ function getIndexOfOptionByAccountId(options, accountId) {
 }
 
 function getIndexOfOptionBySocketId(options, socketId) {
-	const option = options.find((option) => {
+	const option = options.find(option => {
 		const subcribers = option.subcribers;
 		const subcriberIndex = getIndexOfSubcriberBySocketId(subcribers, socketId);
 
-		return subcriberIndex > -1 && findSocketId(subcribers[subcriberIndex].socketIds, socketId) != null;
+		return (
+			subcriberIndex > -1 &&
+			findSocketId(subcribers[subcriberIndex].socketIds, socketId) != null
+		);
 	});
 	if (option != null) {
 		return options.indexOf(option);
@@ -128,9 +141,9 @@ function getIndexOfOptionBySocketId(options, socketId) {
 }
 
 function convertNumArrayToString(array) {
-	let stringResult = '';
+	let stringResult = "";
 
-	array.forEach((element) => {
+	array.forEach(element => {
 		stringResult += `"${element}",`;
 	});
 
@@ -140,9 +153,9 @@ function convertNumArrayToString(array) {
 function getAccountIdsInOption(option) {
 	const accountIds = [];
 
-	option.subcribers.forEach((subcriber) => {
+	option.subcribers.forEach(subcriber => {
 		accountIds.push(subcriber.accountId);
-	})
+	});
 
 	return accountIds;
 }
@@ -153,7 +166,7 @@ async function createRoom(option, accessToken) {
 		headers: {
 			token: accessToken
 		},
-		url: MAIN_SERVICE_URL + '/graphql',
+		url: MAIN_SERVICE_URL + "/graphql",
 		data: {
 			operationName: null,
 			variables: {},
@@ -177,15 +190,15 @@ async function createRoom(option, accessToken) {
 						payload
 					}
 				}
-			`.split('\t').join('')
+			`
+				.split("\t")
+				.join("")
 		}
 	});
 }
 
-function clearRoom(roomId) {
-	Object.keys(
-		io.sockets.adapter.rooms[roomId].sockets
-	).forEach(socketId => {
+function clearRoom(io, roomId) {
+	Object.keys(io.sockets.adapter.rooms[roomId].sockets).forEach(socketId => {
 		io.sockets.connected[socketId].leave(roomId);
 	});
 }
@@ -195,37 +208,41 @@ function triggerOption(options, option, socket, accessToken) {
 		// console.log('trigger at: ' + socket.id);////////////////////////////
 		// console.log('\n\n');////////////////////////////
 		createRoom(option, accessToken)
-			.then((result) => {
+			.then(result => {
 				// console.log('success: ' + socket.id);////////////////////////////
 				// console.log('\n\n');////////////////////////////
 				const response = result.data;
 
-				io.of('/').in(option.socketRoomId).emit('FINDING_RESULT', new ResultCRUD({
-					payload: response.data.createRoom.payload,
-					success: true
-				}));
+				io.of("/")
+					.in(option.socketRoomId)
+					.emit(
+						"FINDING_RESULT",
+						new ResultCRUD({
+							payload: response.data.createRoom.payload,
+							success: true
+						})
+					);
 
 				//remove this option
 				options.splice(options.indexOf(option), 1);
 				//leave all members
-				clearRoom(option.socketRoomId);
+				clearRoom(io, option.socketRoomId);
 
 				// console.log('io.sockets.adapter.rooms');////////////////////////////
 				// console.log(io.sockets.adapter.rooms);////////////////////////////
 			})
-			.catch((error) => {
+			.catch(error => {
 				// console.log('error: ' + socket.id);////////////////////////////
 				// console.log('\n\n');////////////////////////////
 
 				notification(socket, {
 					success: false,
 					payload: error,
-					message: 'room creating failed'
+					message: "room creating failed"
 				});
-				console.log(error);////////////////////////////
+				console.log(error); ////////////////////////////
 			});
 	} else {
-
 	}
 }
 
@@ -240,14 +257,16 @@ function pushSocketIdToItsSubcriber(subcribers, accountId, socketId) {
 	}
 }
 
-function popSocketIdToItsSubcriber(subcribers, socketId) {
+function popSocketIdFromItsSubcriber(subcribers, socketId) {
 	const subcriberIndex = getIndexOfSubcriberBySocketId(subcribers, socketId);
 	if (subcriberIndex > -1) {
-		const socketIdIndex = subcribers[subcriberIndex].socketIds.indexOf(socketId);
+		const socketIdIndex = subcribers[subcriberIndex].socketIds.indexOf(
+			socketId
+		);
 		if (socketIdIndex > -1) {
 			subcribers[subcriberIndex].socketIds.splice(socketIdIndex, 1);
 
-			//remove this subcriber if its socketIds are empty 
+			//remove this subcriber if its socketIds are empty
 			if (subcribers[subcriberIndex].socketIds.length < 1) {
 				subcribers.splice(subcriberIndex, 1);
 			}
@@ -262,20 +281,24 @@ function popSubcriber(subcribers, accountId) {
 	}
 }
 
-function joinSocketRoom(socket, socketRoomId) {
-	socket.join(socketRoomId);
-	console.log(socket.id + '\tjoin\n\n');////////////////////////////
-	// console.log(io.sockets.adapter.rooms);////////////////////////////
-	// __options.forEach((option) => console.log(option.subcribers));////////////////////////////
-
-
+function joinSocketRoom(io, socketId, socketRoomId) {
+	io.sockets.connected[socketId].join(socketRoomId);
+	console.log(socketId + "\tjoin\n"); ////////////////////////////
 }
 
 function findOption(options, roomSize, isAbsolute) {
-	return options.find((option) => (option.roomSize === roomSize && option.isAbsolute === isAbsolute));
+	return options.find(
+		option => option.roomSize === roomSize && option.isAbsolute === isAbsolute
+	);
 }
 
-function createOptionIfItsNotExist(options, socket, roomSize, isAbsolute, gameId) {
+function createOptionIfItsNotExist(
+	options,
+	socket,
+	roomSize,
+	isAbsolute,
+	gameId
+) {
 	let option = findOption(options, roomSize, isAbsolute);
 	if (option == null) {
 		option = new Option(isAbsolute, roomSize, socket.id, gameId);
@@ -286,7 +309,7 @@ function createOptionIfItsNotExist(options, socket, roomSize, isAbsolute, gameId
 }
 
 async function requestToAnotherServer(options) {
-	options['json'] = true;
+	options["json"] = true;
 
 	return await axios(options);
 }
@@ -298,31 +321,29 @@ async function handleAccessToken(accessToken) {
 			secret_key: SERVICE_KEY,
 			token: accessToken
 		},
-		url: AUTH_SERVICE_URL + '/auth'
+		url: AUTH_SERVICE_URL + "/auth"
 	});
 }
 
 function notification(
 	socket,
-	{
-		status = 200,
-		payload = null,
-		success = false,
-		message = ''
-	}
+	{ status = 200, payload = null, success = false, message = "" }
 ) {
-	socket.emit('NOTIFICATION', new ResultCRUD({
-		status: status,
-		payload: payload,
-		success: success,
-		message: message
-	}));
+	socket.emit(
+		"NOTIFICATION",
+		new ResultCRUD({
+			status: status,
+			payload: payload,
+			success: success,
+			message: message
+		})
+	);
 }
 
 function auth(socket, accessToken, successCalback, errorCallback) {
 	if (accessToken) {
 		handleAccessToken(accessToken)
-			.then((result) => {
+			.then(result => {
 				const response = result.data;
 				// console.log(response);////////////////////////////////////////
 
@@ -333,144 +354,215 @@ function auth(socket, accessToken, successCalback, errorCallback) {
 					notification(socket, {
 						success: false,
 						payload: response,
-						message: 'authentication failed'
+						message: "authentication failed"
 					});
 				}
 			})
-			.catch((error) => {
+			.catch(error => {
 				notification(socket, {
 					success: false,
-					payload: error,////////////////////////////////////////
-					message: 'authentication failed'
+					payload: error, ////////////////////////////////////////
+					message: "authentication failed"
 				});
-				console.log('authentication failed');////////////////////////////////////////
-				console.log(error);////////////////////////////////////////
+				console.log("authentication failed"); ////////////////////////////////////////
+				console.log(error); ////////////////////////////////////////
 				errorCallback(error);
 			});
 	} else {
 		notification(socket, {
 			success: false,
-			message: 'missing the token'
+			message: "missing the token"
 		});
 	}
 }
 
-function sendFindingStatusToOtherDivices(socket, option, accountId) {
+function sendFindingStatusToOtherDivices(socket, option, accountId, status) {
 	const subcribers = option.subcribers;
+	console.log("send:");////////////////////////////////////////
+	console.log(subcribers);////////////////////////////////////////
 	const subcriberIndex = getIndexOfSubcriberByAccountId(subcribers, accountId);
 
-	if(subcriberIndex > -1){
-		subcribers[subcriberIndex].socketIds.forEach((socketId) => {
-			socket.broadcast.to(socketId).emit('IS_FINDING_ROOMS_RESULT', true);
+	if (subcriberIndex > -1) {
+		subcribers[subcriberIndex].socketIds.forEach(socketId => {
+			socket.broadcast.to(socketId).emit("IS_FINDING_ROOMS", status);
+			console.log(socketId);////////////////////////////////////////
 		});
 	}
 }
 
+function pushSocketIdToItsSubcriberIfNotExist(queueList, options, accountId, socket) {
+	const optionIndex = getIndexOfOptionByAccountId(options, accountId);
+	if (optionIndex > -1) {
+		const option = options[optionIndex];
+		const socketId = socket.id;
+		const subcribers = option.subcribers;
+		const subcriberIndex = getIndexOfSubcriberByAccountId(subcribers, accountId);
+		if (subcriberIndex > -1 && findSocketId(subcribers[subcriberIndex].socketIds, socketId) == null) {
+			pushSocketIdToItsSubcriber(subcribers, accountId, socketId);
+			joinSocketRoom(io, socketId, option.socketRoomId);
+			socket.emit('IS_FINDING_ROOMS', true);
+		}
+	} else {
+		pushToQueueList(queueList, accountId, socket.id);
+	}
+}
 
+function findQueueByAccountId(queueList, accountId) {
+	return queueList.find((queue) => queue.accountId === accountId);
+}
 
+function getIndexOfQueueBySocketId(queueList, socketId) {
+	const queue = queueList.find((queue) => findSocketId(queue.socketIds, socketId) != null);
+	if (queue) {
+		return queueList.indexOf(queue);
+	} else {
+		return -1;
+	}
+}
 
+function pushToQueueList(queueList, accountId, socketId) {
+	const queue = findQueueByAccountId(queueList, accountId);
+	if (queue) {
+		queue.socketIds.push(socketId);
+	} else {
+		queueList.push(new Queue(accountId, socketId));
+	}
+}
 
+function popQueueToSubcriber(io, queueList, option, accountId) {
+	const queue = findQueueByAccountId(queueList, accountId);
+	if (queue) {
+		queue.socketIds.forEach((socketId) => {
+			pushSocketIdToItsSubcriber(option.subcribers, accountId, socketId);
 
+			console.log(queueList);//////////////////////////////////////////
+			joinSocketRoom(io, socketId, option.socketRoomId);
+		});
+	}
+}
+
+function popSocketIdFromItsQueue(queueList, socketId) {
+	const queueIndex = getIndexOfQueueBySocketId(queueList, socketId);
+	if (queueIndex > -1) {
+		const queue = queueList[queueIndex];
+		const socketIdIndex = queue.socketIds.indexOf(socketId);
+
+		if (socketIdIndex > -1) {
+			queue.socketIds.splice(socketIdIndex, 1);
+		}
+		//remove this option if it has not any subcribers
+		if (queue.socketIds.length < 1) {
+			queueList.splice(queueIndex, 1);
+		}
+	}
+}
 
 
 
 const __options = [];
-
-io.on("connection", (socket) => {
+const __queueList = [];
+io.on("connection", socket => {
 	const token = socket.request.headers.token;
 
 	if (token) {
-		auth(socket, data.accessToken,
+		auth(
+			socket,
+			token,
 			(accessToken, accountId) => {
-				socket.on("IS_FINDING_ROOMS", (data) => {
-					if (getIndexOfOptionByAccountId(accountId) > -1) {
-						socket.emit('IS_FINDING_ROOMS_RESULT', true);
-					} else {
-						socket.emit('IS_FINDING_ROOMS_RESULT', false);
-					}
-				})
+				pushSocketIdToItsSubcriberIfNotExist(__queueList, __options, accountId, socket);
 
-				socket.on("FIND_ROOMS", (data) => {
+				socket.on("IS_FINDING_ROOMS", data => {
+					if (getIndexOfOptionByAccountId(accountId) > -1) {
+						socket.emit("IS_FINDING_ROOMS", true);
+					} else {
+						socket.emit("IS_FINDING_ROOMS", false);
+					}
+				});
+
+				socket.on("FIND_ROOMS", data => {
 					let option = data.option;
 					const socketId = socket.id;
+					console.log('find: ' + socket.id);////////////////////////////////////////
+					if (
+						option &&
+						accountId &&
+						option.roomSize &&
+						option.isAbsolute !== undefined &&
+						option.gameId
+					) {
+						option = createOptionIfItsNotExist(
+							__options,
+							socket,
+							option.roomSize,
+							option.isAbsolute,
+							option.gameId
+						);
+						popQueueToSubcriber(io, __queueList, option, accountId);
 
-					if (option && accountId && option.roomSize && option.isAbsolute !== undefined && option.gameId) {
-						option = createOptionIfItsNotExist(__options, socket, option.roomSize, option.isAbsolute, option.gameId);
-
-						sendFindingStatusToOtherDivices();
+						sendFindingStatusToOtherDivices(socket, option, accountId, true);
 						pushSocketIdToItsSubcriber(option.subcribers, accountId, socketId);
-						joinSocketRoom(socket, option.socketRoomId);
+						joinSocketRoom(io, socketId, option.socketRoomId);
 						triggerOption(__options, option, socket, accessToken);
 					} else {
 						notification(socket, {
 							success: false,
-							message: 'wrong data format'
+							message: "wrong data format"
 						});
 					}
-				})
+				});
 
-				socket.on("UNFIND_ROOMS", (data) => {
+				socket.on("UNFIND_ROOMS", data => {
+					console.log('unfind: ' + socket.id);////////////////////////////////////////
 					const optionIndex = getIndexOfOptionByAccountId(__options, accountId);
 					if (optionIndex > -1) {
-						popSubcriber(__options[optionIndex].subcribers, accountId);
+						const option = __options[optionIndex];
+						sendFindingStatusToOtherDivices(socket, option, accountId, false);
+						// popSubcriber(option.subcribers, accountId);
 
-						//remove this option if it has not any subcribers
-						if (__options[optionIndex].subcribers.length < 1) {
-							__options.splice(optionIndex, 1);
-						}
-						//
-						socket.emit('UNFIND_ROOMS_RESULT', true);
+						// //remove this option if it has not any subcribers
+						// if (option.subcribers.length < 1) {
+						// 	__options.splice(optionIndex, 1);
+						// }
+						// //
 					}
-				})
+				});
 
-				socket.on('disconnect', () => {
+				socket.on("disconnect", () => {
 					socket.disconnect();
 
-					//remove socketId of its account
+					//remove socketId in account's option
 					const optionIndex = getIndexOfOptionBySocketId(__options, socket.id);
 					if (optionIndex > -1) {
-						popSocketIdToItsSubcriber(__options[optionIndex].subcribers, socket.id);
+						popSocketIdFromItsSubcriber(
+							__options[optionIndex].subcribers,
+							socket.id
+						);
 
 						//remove this option if it has not any subcribers
 						if (__options[optionIndex].subcribers.length < 1) {
 							__options.splice(optionIndex, 1);
 						}
 					}
-				})
+					//romove socketId in account's queue
+					popSocketIdFromItsQueue(__queueList, socket.id);
+
+				});
 			},
-			(error) => {
+			error => {
 				socket.disconnect();
 			}
 		);
-
 	} else {
 		socket.disconnect();
 	}
-})
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+});
 
 http.listen(port, () => {
-	console.log('listening on PORT: ' + port);
-    /* mongoose.Promise = global.Promise;
-     mongoose.set('useFindAndModify', false);
-     mongoose.set('debug', true);
-     mongoose.connect(process.env.CONNECTIONS, { useUnifiedTopology: true, useNewUrlParser: true, useCreateIndex: true }, (res, err) => {
-         console.log('Connected to MongoDB');
-     })*/
-})
+	console.log("listening on PORT: " + port);
+	/* mongoose.Promise = global.Promise;
+	   mongoose.set('useFindAndModify', false);
+	   mongoose.set('debug', true);
+	   mongoose.connect(process.env.CONNECTIONS, { useUnifiedTopology: true, useNewUrlParser: true, useCreateIndex: true }, (res, err) => {
+		   console.log('Connected to MongoDB');
+	   })*/
+});
