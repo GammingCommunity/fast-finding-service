@@ -64,13 +64,9 @@ class Subcriber {
 }
 
 class Queue {
-	constructor(accountId, socketId, socketIds = null) {
+	constructor(accountId, socketId) {
 		this.accountId = accountId;
-		if(socketIds){
-			this.socketIds = socketIds;
-		} else {
-			this.socketIds = [socketId];
-		}
+		this.socketIds = [socketId];
 	}
 }
 
@@ -201,7 +197,7 @@ async function createRoom(option, accessToken) {
 	});
 }
 
-function leaveRoom(io, socketId, roomId){
+function leaveRoom(io, socketId, roomId) {
 	io.sockets.connected[socketId].leave(roomId);
 }
 
@@ -285,18 +281,22 @@ function popSocketIdFromItsSubcriber(subcribers, socketId) {
 function popSubcriberToQueue(io, subcribers, accountId, queueList, roomId) {
 	const subcriberIndex = getIndexOfSubcriberByAccountId(subcribers, accountId);
 	if (subcriberIndex > -1) {
-		queueList.push(new Queue(accountId, null, subcribers[subcriberIndex].socketIds));
 		subcribers[subcriberIndex].socketIds.forEach((socketId) => {
 			leaveRoom(io, socketId, roomId);
+			if (getIndexOfQueueBySocketId(queueList, socketId) === -1) {
+				pushToQueueList(queueList, accountId, socketId);
+			} else {
+				console.log('SocketId from Subcribe has exist in Queue');
+			}
 		});
-		
+
 		subcribers.splice(subcriberIndex, 1);
 	}
 }
 
 function joinSocketRoom(io, socketId, socketRoomId) {
 	io.sockets.connected[socketId].join(socketRoomId);
-	console.log(socketId + "\tjoin\n"); ////////////////////////////
+	// console.log(socketId + "\tjoin\n"); ////////////////////////////
 }
 
 function findOption(options, roomSize, isAbsolute, gameId) {
@@ -391,14 +391,14 @@ function auth(socket, accessToken, successCalback, errorCallback) {
 
 function sendFindingStatusToOtherDivices(socket, option, accountId, status) {
 	const subcribers = option.subcribers;
-	console.log("send:");////////////////////////////////////////
-	console.log(subcribers);////////////////////////////////////////
+	// console.log("send:");////////////////////////////////////////
+	// console.log(subcribers);////////////////////////////////////////
 	const subcriberIndex = getIndexOfSubcriberByAccountId(subcribers, accountId);
 
 	if (subcriberIndex > -1) {
 		subcribers[subcriberIndex].socketIds.forEach(socketId => {
 			socket.broadcast.to(socketId).emit("IS_FINDING_ROOMS", status);
-			console.log(socketId);////////////////////////////////////////
+			// console.log(socketId);////////////////////////////////////////
 		});
 	}
 }
@@ -434,11 +434,15 @@ function getIndexOfQueueBySocketId(queueList, socketId) {
 }
 
 function pushToQueueList(queueList, accountId, socketId) {
-	const queue = findQueueByAccountId(queueList, accountId);
-	if (queue) {
-		queue.socketIds.push(socketId);
+	if (getIndexOfQueueBySocketId(queueList, socketId) === -1) {
+		const queue = findQueueByAccountId(queueList, accountId);
+		if (queue) {
+			queue.socketIds.push(socketId);
+		} else {
+			queueList.push(new Queue(accountId, socketId));
+		}
 	} else {
-		queueList.push(new Queue(accountId, socketId));
+		console.log('socketId has existed in Queue');
 	}
 }
 
@@ -446,15 +450,23 @@ function popQueueToSubcriber(io, queueList, option, accountId) {
 	const queue = findQueueByAccountId(queueList, accountId);
 	if (queue) {
 		queue.socketIds.forEach((socketId) => {
-			pushSocketIdToItsSubcriber(option.subcribers, accountId, socketId);
+			if (getIndexOfSubcriberBySocketId(option.subcribers, socketId) === -1) {
+				pushSocketIdToItsSubcriber(option.subcribers, accountId, socketId);
 
-			console.log(queueList);//////////////////////////////////////////
-			joinSocketRoom(io, socketId, option.socketRoomId);
+				joinSocketRoom(io, socketId, option.socketRoomId);
+			} else {
+				console.log('SocketId in Queue has existed in Subcriber');
+			}
 		});
+		//remove this queue
+		queueList.splice(queueList.indexOf(queue), 1);
 	}
 }
 
 function popSocketIdFromItsQueue(queueList, socketId) {
+	// console.log('\n queueList:');//////////////////////////////
+	// console.log(socketId);//////////////////////////////
+	// console.log(queueList);//////////////////////////////
 	const queueIndex = getIndexOfQueueBySocketId(queueList, socketId);
 	if (queueIndex > -1) {
 		const queue = queueList[queueIndex];
@@ -468,6 +480,8 @@ function popSocketIdFromItsQueue(queueList, socketId) {
 			queueList.splice(queueIndex, 1);
 		}
 	}
+	// console.log('\n result:');//////////////////////////////
+	// console.log(queueList);//////////////////////////////
 }
 
 
@@ -495,7 +509,7 @@ io.on("connection", socket => {
 				socket.on("FIND_ROOMS", data => {
 					let option = data.option;
 					const socketId = socket.id;
-					console.log('find: ' + socket.id);////////////////////////////////////////
+					// console.log('find: ' + socket.id);////////////////////////////////////////
 					if (
 						option &&
 						accountId &&
@@ -525,7 +539,7 @@ io.on("connection", socket => {
 				});
 
 				socket.on("UNFIND_ROOMS", data => {
-					console.log('unfind: ' + socket.id);////////////////////////////////////////
+					// console.log('unfind: ' + socket.id);////////////////////////////////////////
 					const optionIndex = getIndexOfOptionByAccountId(__options, accountId);
 					if (optionIndex > -1) {
 						const option = __options[optionIndex];
