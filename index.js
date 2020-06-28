@@ -415,6 +415,24 @@ io.on("connection", (socket) => {
 		);
 	})
 
+	socket.on("UNFIND_ROOMS", (data) => {
+		auth(socket, data.accessToken,
+			(accessToken, accountId) => {
+				const optionIndex = getIndexOfOptionByAccountId(__options, accountId);
+				if (optionIndex > -1) {
+					popSubcriber(__options[optionIndex].subcribers, accountId);
+
+					//remove this option if it has not any subcribers
+					if (__options[optionIndex].subcribers.length < 1) {
+						__options.splice(optionIndex, 1);
+					}
+					//
+					socket.emit('UNFIND_ROOMS_RESULT', true);
+				}
+			}
+		);
+	})
+
 
 
 	socket.on('disconnect', () => {
